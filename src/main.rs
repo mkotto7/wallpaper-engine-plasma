@@ -1,61 +1,73 @@
-use std::fmt::format;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::fs;
-use std::thread::sleep;
-use std::time::Duration;
+use std::{path::{Path, PathBuf}, process::Command, fs, thread::sleep, time::Duration};
 use humantime;
 use clap::{Error, Parser};
 use clap::error::ErrorKind;
 
-// ref: https://docs.rs/clap/latest/clap/
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(short, long, value_parser = validate_file)]
     file: Option<PathBuf>,
     #[arg(short, long, value_parser = validate_dir, default_value = ".")]
     directory: Option<PathBuf>,
-    #[arg(short, long, value_parser = humantime::parse_duration)]
+    #[arg(short, long, value_parser = humantime::parse_duration, default_value = "3600s")]
     period: Option<Duration>
 }
 
-fn validate_dir(dir: &str) -> Result<PathBuf, String> {
+const EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
+
+fn validate_dir(dir: &str) -> Result<PathBuf, Error> {
     let path = PathBuf::from(dir);
     if !path.exists() {
-        return Err(format!("path {} does not exist", path.display()));
+        return Err(Error::raw(
+            ErrorKind::ValueValidation,
+            format!("path {} does not exist", path.display())
+        ))
     }
 
     if !path.is_dir() {
-        return Err(format!("path {} is not a directory", path.display()));
+        return Err(Error::raw(
+            ErrorKind::ValueValidation,
+            format!("path {} is not a directory", path.display())
+        ))
     }
 
     Ok(path)
 }
 
-fn validate_file(file: &str) -> Result<PathBuf, String> {
+fn validate_file(file: &str) -> Result<PathBuf, Error> {
     let path = PathBuf::from(file);
 
     if !path.exists() {
-        return Err(format!("path {:?} does not exist", path));
+        return Err(Error::raw(
+            ErrorKind::ValueValidation,
+            format!("path {} does not exist", path.display())
+        ))
     }
 
     if !path.is_file() {
-        return Err(format!("path {:?} is not a file", path));
+        return Err(Error::raw(
+            ErrorKind::ValueValidation,
+            format!("path {} is not a file", path.display())
+        ))
     }
 
-    const VALID_EXTENSIONS : &[&str] = &["png", "jpg", "jpeg"];
     let ext = path.extension()
         .and_then(|ext| ext.to_str())
-        .ok_or_else(|| "could not read extension".to_string())?;
+        .ok_or_else(|| Error::raw(
+            ErrorKind::ValueValidation,
+            "could not read extension".to_string()
+        ))?;
 
-    if !VALID_EXTENSIONS.contains(&ext) {
-        return Err("file is not supported".to_string());
+    if !EXTENSIONS.contains(&ext) {
+        return Err(Error::raw(
+            ErrorKind::ValueValidation,
+            "file is not supported"));
     }
 
     Ok(path)
 }
 
-fn set_wallpaper(path: &PathBuf) {
+fn set_wallpaper(path: &Path) {
     /*
     ref: https://github.com/KDE/plasma-workspace/blob/master/wallpapers/image/plasma-apply-wallpaperimage.cpp
     plasma's own wrapper
@@ -75,7 +87,6 @@ fn set_wallpaper(path: &PathBuf) {
         .arg(&script)
         .output()
         .expect("qdbus command failed!");
-    // println!("SCRIPT:\n {}", &script);
 
     if !output.status.success() {
         println!("failed to set wallpaper!");
@@ -83,16 +94,43 @@ fn set_wallpaper(path: &PathBuf) {
     }
 }
 
-fn main() {
-    // ref: https://rust-cli.github.io/book/tutorial/cli-args.html
-    let args: Args = Args::parse();
-    println!("{:#?}", args);
+fn is_valid_image(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| EXTENSIONS.contains(&ext))
+        .unwrap_or(false)
+}
 
-    // let files = fs::read_dir(args.directory).unwrap();
-    // for entry in files {
-    //     let path = &entry.unwrap().path();
-    //     println!("Setting wallpaper: {:?}", path);
-    //     set_wallpaper(path);
-    //     sleep(Duration::from_millis(3000));
-    // }
+fn main() {
+    let args: Args = Args::parse();
+
+    match args.file {
+        Some(file) => {
+            set_wallpaper(file.as_path());
+            return;
+        },
+        None => {}
+    }
+
+    let period= args.period.unwrap();
+    let dir = args.directory.unwrap();
+
+    let files: Vec<PathBuf> = fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|f| f.ok())
+        .map(|f| f.path())
+        .filter(|f| is_valid_image(f))
+        .collect();
+
+    let mut wallpapers_set = 0;
+
+    for entry in files {
+        let path = entry.as_path();
+        println!("Setting wallpaper: {:?}", path);
+        set_wallpaper(path);
+        wallpapers_set += 1;
+        sleep(period);
+    }
+
+    println!("wallpapers set: {}", wallpapers_set);
 }
