@@ -6,3 +6,9 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 humantime = "2.3.0"
+candle-core = { version = "0.9.2-alpha.2", features = ["cuda"] }
+candle-transformers = { version = "0.9.2-alpha.2", features = ["cuda"] }
+tokenizers = "0.22.2"
+anyhow = "1.0.100"
+hf-hub = "0.4.3"
+image = "0.25.9"
