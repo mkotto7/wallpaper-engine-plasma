@@ -13,19 +13,42 @@ use std::{
     thread::sleep,
     time::Duration,
 };
+use sysinfo::{Networks, System};
 use tokenizers::Tokenizer;
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[arg(short, long, value_parser = validate_file)]
+    #[arg(short, long, value_parser = validate_file, help = "Image to apply")]
     file: Option<PathBuf>,
-    #[arg(short, long, value_parser = validate_dir, default_value = ".")]
+    #[arg(short, long, value_parser = validate_dir, default_value = ".", help = "Directory to loop")]
     directory: Option<PathBuf>,
-    #[arg(short, long, value_parser = humantime::parse_duration, default_value = "3600s")]
+    #[arg(short, long, value_parser = humantime::parse_duration, default_value = "1h", help = "Interval between applying each wallpaper")]
     period: Option<Duration>,
-    #[arg(long)]
+    #[arg(long, default_value = "2", help = "Change wallpaper fill mode")]
+    fill_mode: Option<u16>,
+    #[arg(
+        short,
+        long,
+        default_value = "0",
+        help = "What screen to apply wallpaper for"
+    )]
+    screen: Option<u16>,
+    #[arg(
+        short,
+        long,
+        default_value = "false",
+        help = "Return available screens"
+    )]
+    get_screens: Option<bool>,
+    #[arg(long, help = "Specify prompt to use for image generation")]
     prompt: Option<String>,
-    // TODO! add arg for specific desktop
+    #[arg(
+        short,
+        long,
+        default_value = "false",
+        help = "Use CPU for image generation (very slow)"
+    )]
+    use_cpu: Option<bool>,
 }
 
 const EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
@@ -120,42 +143,84 @@ fn set_wallpaper(path: &Path) {
     let (): () = proxy
         .method_call(
             "org.kde.PlasmaShell",
-            "setWallpaper",
+            "evaluateScript",
             ("org.kde.image", params, screen),
         )
         .expect("Daemon call failed");
 }
 
-fn get_desktops() -> u64 {
-    // TODO! return desktops from plasmashell daemon call
-    0
+fn get_screens() -> String {
+    let conn = Connection::new_session().expect("Failed to create a connection");
+    let proxy = conn.with_proxy(
+        "org.kde.plasmashell",
+        "/PlasmaShell",
+        Duration::from_millis(5000),
+    );
+
+    let script = "function ds() {
+        var info = [];
+        var ds = desktops();
+        for (var i = 0; i < ds.length; i++) {
+            var d = ds[i];
+            info.push({
+                id: i
+            });
+        }
+        return JSON.stringify(info);
+    }
+
+    print(ds())"
+        .to_string();
+
+    let (screens,): (String,) = proxy
+        .method_call("org.kde.PlasmaShell", "evaluateScript", (&script,))
+        .expect("Daemon call failed");
+    screens
 }
 
 fn get_seed() -> u64 {
     let mut seed = 0;
+    let mut sys = System::new();
+    sys.refresh_all();
+
     let time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    seed = seed + time;
-    // TODO! read more variables, like cpu/gpu load, etc.
 
-    println!("seed: {}", time);
+    seed = seed + time + sys.total_memory() - sys.used_memory();
 
+    let networks = Networks::new_with_refreshed_list();
+    for (_, data) in &networks {
+        let received = data.total_received();
+        let transmitted = data.total_transmitted();
+        if received > transmitted {
+            seed = seed + (received % transmitted)
+        } else {
+            seed = seed + (transmitted % received)
+        }
+    }
+
+    println!("seed: {}", seed);
     seed
 }
 
-fn generate_image(prompt: String) -> anyhow::Result<PathBuf> {
+fn generate_image(prompt: String, use_cpu: bool) -> anyhow::Result<PathBuf> {
     /*
     ref: https://github.com/huggingface/candle/blob/main/candle-examples/examples/stable-diffusion/main.rs
      */
     println!("Generating image...");
-    // TODO! add cpu option if gpu not available
-    let device = Device::new_cuda(0)?;
+    let device = if use_cpu {
+        Device::Cpu
+    } else {
+        Device::new_cuda(0)?
+    };
     let dtype = DType::F16;
 
     let seed = get_seed();
-    device.set_seed(seed)?;
+    if !use_cpu {
+        device.set_seed(seed)?;
+    }
 
     let n_steps = 30;
     let guidance_scale = 7.5;
@@ -268,14 +333,31 @@ fn generate_image(prompt: String) -> anyhow::Result<PathBuf> {
 
 fn main() {
     let args: Args = Args::parse();
+
+    match args.get_screens {
+        Some(true) => {
+            println!("screens: {}", get_screens());
+            return;
+        }
+        Some(false) => return,
+        None => {}
+    }
+
+    let use_cpu = if let Some(true) = args.use_cpu {
+        true
+    } else {
+        false
+    };
+
     let image = if let Some(file) = args.file {
         file.canonicalize().expect("Failed to load file")
     } else if let Some(prompt) = args.prompt {
-        generate_image(prompt).expect("Failed to generate image")
+        generate_image(prompt, use_cpu).expect("Failed to generate image")
     } else {
         generate_image(
             "A futuristic neon city in Rust programming language style, cinematic lighting"
                 .to_string(),
+            use_cpu,
         )
         .expect("Failed to generate image")
     };
