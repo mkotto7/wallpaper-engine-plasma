@@ -3,23 +3,28 @@
 Wallpaper engine for KDE Plasma. 
 
 ## To-do
+- [ ] Client argument to stop directory loop
+- [ ] Daemon returns status messages when generating
+- [ ] Better loop (interval check if new)
+- [ ] Better argument checking (can't provide file and dir at same time)
+- [ ] systemd? + stopping daemon
+- [ ] Client check if daemon is running
 - [ ] GenAI depends on something that is currently going on, date of time
-- [ ] Daemon (server + client?)
-- [ ] Proper README
-
+- [ ] Better README (stop loop)
 
 ## Features
 
-- Set a single wallpaper
+- Set a specific wallpaper
 - Loop a directory at a specified interval
-- 512x512 wallpaper generation using Stable Diffusion 1.5, with GPU or CPU
-- Specify arguments such as fill mode or screen
+- 512x512 pixel wallpaper generation using Stable Diffusion 1.5, with GPU or CPU
+- Specify arguments such as generation prompt, fill mode or screen
+- Daemon and client structure
 
 ## Prerequisites
 
-1.  KDE Plasma 6
+1.  KDE Plasma 6 (only tested on Arch Linux)
 2.  Rust
-3.  CUDA toolkit (if using NVIDIA GPU for image generation)
+3.  CUDA toolkit (if using image generation and an NVIDIA GPU)
 
 ## Installation
 
@@ -29,34 +34,54 @@ Wallpaper engine for KDE Plasma.
     cd wallpaper-engine-plasma
     ```
 
-2.  Build:
+2.  Install:
     ```bash
-    cargo build --release
+    cargo install --path .
     ```
+    
+The binaries will be in `~/.cargo/bin`.
 
-## Usage and examples
-`./target/release/wallpaper-engine-plasma --help` to list all possible arguments.
+## Usage
 
-### Apply a specific image
+The engine consists of two parts: the daemon which runs in the background and the client.
+Make sure you are in the folder with the binaries, by default:
 ```bash
-./target/release/wallpaper-engine-plasma --file ~/Pictures/landscape.png --fill-mode fill
+cd ~/.cargo/bin
+```
+Note: if you do not have `.cargo/bin` in your PATH, then use `./wp-d` and `./wp-c` respectively for the commands below.
+
+### 1. Start the daemon
+```bash
+wp-d &
 ```
 
-### Image generation
-Generate a wallpaper from a text prompt and apply it immediately on screen 0:
+### 2. Send commands with client
+
+Examples:
+Display help:
 ```bash
-./target/release/wallpaper-engine-plasma --prompt "aurora borealis" --screen 0
+wp-c --help
 ```
 
-### Directory loop
-Loop and rotate through all images in a folder every 30 minutes with the fit fill mode:
+Apply a specific image:
 ```bash
-./target/release/wallpaper-engine-plasma --directory ~/Pictures/Wallpapers --period 30m --fill-mode fit
+wp-c --file ~/Pictures/landscape.png --fill-mode fill
 ```
 
-### List available screens
+Generate a wallpaper using Stable Diffusion:
 ```bash
-./target/release/wallpaper-engine-plasma --get-screens
+wp-c --prompt "aurora borealis"
+```
+Note: the first time may take time, since the weights have to be downloaded from HuggingFace.
+
+Apply each image in a directory every 30 minutes:
+```bash
+wp-c --directory ~/Wallpapers --period 30m
+```
+
+Stop the current loop:
+```bash
+busctl --user call org.wallpaper.PlasmaEngine /org/wallpaper/PlasmaEngine org.wallpaper.PlasmaEngine StopLoop
 ```
 
 ## License

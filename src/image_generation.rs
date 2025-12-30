@@ -1,8 +1,8 @@
+use candle_core::{DType, Device, IndexOp, Module, Tensor};
+use candle_transformers::models::stable_diffusion;
 use std::fs::canonicalize;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use candle_core::{DType, Device, Tensor, IndexOp, Module};
-use candle_transformers::models::stable_diffusion;
 use sysinfo::{Networks, System};
 use tokenizers::Tokenizer;
 

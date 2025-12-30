@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use clap::Error;
 use clap::error::ErrorKind;
+use std::path::{Path, PathBuf};
 
 const EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
 

@@ -1,52 +1,41 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::Duration;
-use dbus::arg::Variant;
-use dbus::blocking::Connection;
-use serde::Deserialize;
+use zbus::zvariant::Value;
 
 #[derive(Deserialize, Debug)]
 struct Screen {
     id: u16,
 }
 
-pub fn set_wallpaper(path: &Path, screen: u32, fill_mode: u8) {
+pub async fn set_wallpaper(path: &Path, screen: u32, fill_mode: u8) -> anyhow::Result<()> {
     // ref: https://github.com/KDE/plasma-workspace/blob/master/wallpapers/image/plasma-apply-wallpaperimage.cpp
-    // dbus ref: https://docs.rs/crate/dbus/latest/source/examples/client.rs
-
-    let conn = Connection::new_session().expect("Failed to connect to daemon");
-    let proxy = conn.with_proxy(
-        "org.kde.plasmashell",
-        "/PlasmaShell",
-        Duration::from_millis(5000),
-    );
+    let conn = zbus::Connection::session().await?;
 
     // image parameters: /usr/share/plasma/wallpapers/org.kde.image/contents
-    let screen: u32 = screen;
-    let fill_mode = fill_mode.to_string();
-    let mut params: HashMap<String, Variant<String>> = HashMap::new();
-    params.insert("Image".to_string(), Variant(path.display().to_string()));
-    params.insert("FillMode".to_string(), Variant(fill_mode));
+    let mut params: HashMap<String, Value> = HashMap::new();
+    params.insert("Image".to_string(), Value::from(path.display().to_string()));
+    params.insert("FillMode".to_string(), Value::from(fill_mode.to_string()));
 
-    let (): () = proxy
-        .method_call(
-            "org.kde.PlasmaShell",
-            "setWallpaper",
-            ("org.kde.image", params, screen),
-        )
-        .expect("Daemon call failed");
+    conn.call_method(
+        Some("org.kde.plasmashell"),
+        "/PlasmaShell",
+        Some("org.kde.PlasmaShell"),
+        "setWallpaper",
+        &("org.kde.image", params, screen),
+    )
+    .await?;
 
     println!("Applied wallpaper: {}", path.display());
+    println!(
+        "Screen: {}\nFill mode: {}\n",
+        screen,
+        fill_mode.to_string()
+    );
+    Ok(())
 }
 
-pub fn get_screens() -> String {
-    let conn = Connection::new_session().expect("Failed to create a connection");
-    let proxy = conn.with_proxy(
-        "org.kde.plasmashell",
-        "/PlasmaShell",
-        Duration::from_millis(5000),
-    );
-
+pub async fn get_screens() -> anyhow::Result<String> {
     let script = "function ds() {
         var info = [];
         var ds = desktops();
@@ -61,14 +50,24 @@ pub fn get_screens() -> String {
     print(ds())"
         .to_string();
 
-    let (screens,): (String,) = proxy
-        .method_call("org.kde.PlasmaShell", "evaluateScript", (&script,))
-        .expect("Daemon call failed");
+    let conn = zbus::Connection::session().await?;
+
+    let (screens,): (String,) = conn
+        .call_method(
+            Some("org.kde.plasmashell"),
+            "/PlasmaShell",
+            Some("org.kde.PlasmaShell"),
+            "evaluateScript",
+            &(&script),
+        )
+        .await?
+        .body()
+        .deserialize()?;
 
     let parsed: Vec<Screen> = serde_json::from_str(&screens).expect("Could not get screens");
     let mut output = String::new();
     for screen in parsed {
         output.push_str(&format!("id: {}\n", screen.id))
     }
-    output
+    Ok(output)
 }
