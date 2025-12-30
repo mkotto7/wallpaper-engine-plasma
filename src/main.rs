@@ -40,6 +40,7 @@ impl FillMode {
 }
 
 #[derive(Parser, Debug)]
+#[command(arg_required_else_help = true)]
 struct Args {
     #[arg(
         short,
@@ -65,7 +66,7 @@ struct Args {
     period: Option<Duration>,
     #[arg(
         long,
-        default_value = "scale",
+        default_value = "crop",
         help = "Change wallpaper fill mode"
     )]
     fill_mode: FillMode,
@@ -91,13 +92,13 @@ struct Args {
     use_cpu: bool,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let args: Args = Args::parse();
 
     if args.get_screens {
         let screens = get_screens();
         println!("Available screens:\n{}", screens);
-        return;
+        return Ok(());
     }
 
     let use_cpu = args.use_cpu;
@@ -139,4 +140,5 @@ fn main() {
             }
         }
     }
+    Ok(())
 }

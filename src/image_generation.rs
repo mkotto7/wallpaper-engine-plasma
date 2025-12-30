@@ -22,12 +22,12 @@ pub fn get_seed() -> u64 {
     for (_, data) in &networks {
         let received = data.total_received();
         let transmitted = data.total_transmitted();
-        if received > transmitted {
+        if transmitted > 0 {
             seed = seed + (received % transmitted)
         }
     }
 
-    println!("seed: {}", seed);
+    println!("Seed: {}", seed);
     seed
 }
 
