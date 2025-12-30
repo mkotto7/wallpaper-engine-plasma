@@ -5,7 +5,7 @@ mod validate;
 use wallpaper::{set_wallpaper, get_screens};
 use image_generation::generate_image;
 use validate::{is_valid_image, validate_dir, validate_file};
-use clap::{Parser};
+use clap::{Parser, ValueEnum};
 use humantime;
 use std::{
     fs::{read_dir},
@@ -13,6 +13,31 @@ use std::{
     thread::sleep,
     time::Duration,
 };
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+pub enum FillMode {
+    Stretch,
+    Fit,
+    Crop,
+    Tile,
+    TileVertical,
+    TileHorizontal,
+    Pad,
+}
+
+impl FillMode {
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            Self::Stretch => 0,
+            Self::Fit => 1,
+            Self::Crop => 2,
+            Self::Tile => 3,
+            Self::TileVertical => 4,
+            Self::TileHorizontal => 5,
+            Self::Pad => 6,
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -40,10 +65,10 @@ struct Args {
     period: Option<Duration>,
     #[arg(
         long,
-        default_value = "2",
+        default_value = "scale",
         help = "Change wallpaper fill mode"
     )]
-    fill_mode: u8,
+    fill_mode: FillMode,
     #[arg(
         short,
         long,
@@ -54,7 +79,7 @@ struct Args {
     #[arg(
         short,
         long,
-        help = "Print available screens")]
+        help = "Print available screen IDs")]
     get_screens: bool,
     #[arg(long, help = "Specify prompt to use for image generation")]
     prompt: Option<String>,
@@ -77,7 +102,7 @@ fn main() {
 
     let use_cpu = args.use_cpu;
     let screen = args.screen;
-    let fill_mode = args.fill_mode;
+    let fill_mode = args.fill_mode.to_u8();
 
     if let Some(file) = args.file {
         let path = file.canonicalize().expect("Failed to load file");

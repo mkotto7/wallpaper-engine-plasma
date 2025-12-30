@@ -22,7 +22,7 @@ pub fn set_wallpaper(path: &Path, screen: u32, fill_mode: u8) {
     );
 
     // image parameters: /usr/share/plasma/wallpapers/org.kde.image/contents
-    let screen: u32 = screen as u32;
+    let screen: u32 = screen;
     let fill_mode = fill_mode.to_string();
     let mut params: HashMap<String, Variant<String>> = HashMap::new();
     params.insert("Image".to_string(), Variant(path.display().to_string()));
