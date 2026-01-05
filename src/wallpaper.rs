@@ -27,11 +27,7 @@ pub async fn set_wallpaper(path: &Path, screen: u32, fill_mode: u8) -> anyhow::R
     .await?;
 
     println!("Applied wallpaper: {}", path.display());
-    println!(
-        "Screen: {}\nFill mode: {}\n",
-        screen,
-        fill_mode.to_string()
-    );
+    println!("Screen: {}\nFill mode: {}\n", screen, fill_mode.to_string());
     Ok(())
 }
 

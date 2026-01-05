@@ -74,10 +74,11 @@ impl Engine {
         true
     }
 
-    async fn stop_loop(&self) {
+    async fn stop_loop(&self) -> bool {
         println!("Signal received, stopping loop...");
         let mut state = self.state.lock().unwrap();
         state.loop_enabled = false;
+        true
     }
 }
 

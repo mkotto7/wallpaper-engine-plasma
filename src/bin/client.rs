@@ -28,9 +28,11 @@ struct Args {
         default_value = "1h",
         help = "Interval between applying each wallpaper"
     )]
-    period: Duration,
-    #[arg(long, default_value = "crop", help = "Change wallpaper fill mode")]
-    fill_mode: FillMode,
+    interval: Duration,
+    #[arg(long, help = "Stop the directory loop")]
+    stop_loop: bool,
+    #[arg(short, long, default_value = "crop", help = "Change wallpaper fill mode")]
+    mode: FillMode,
     #[arg(
         short,
         long,
@@ -39,14 +41,14 @@ struct Args {
     )]
     screen: u32,
     #[arg(short, long, help = "Print available screen IDs")]
-    get_screens: bool,
-    #[arg(long, help = "Specify prompt to use for image generation")]
-    prompt: Option<String>,
+    print_screens: bool,
+    #[arg(short, long, help = "Specify prompt to use for image generation")]
+    generate: Option<String>,
     #[arg(
         short,
         long,
         help = "Use CPU for image generation (very slow)",
-        requires = "prompt"
+        requires = "generate"
     )]
     use_cpu: bool,
 }
@@ -59,11 +61,19 @@ async fn main() -> anyhow::Result<()> {
 
     let use_cpu = args.use_cpu;
     let screen = args.screen;
-    let fill_mode = args.fill_mode.to_u8();
+    let fill_mode = args.mode.to_u8();
 
-    if args.get_screens {
+    if args.print_screens {
         let screens = proxy.get_screens().await.expect("Failed to get screens");
         println!("Available screens:\n{}", screens);
+        return Ok(());
+    } else if args.stop_loop {
+        let stopped = proxy.stop_loop().await.expect("Failed to send stop signal");
+        if stopped {
+            println!("Sent stop loop signal to daemon.");
+        } else {
+            println!("Failed to stop loop.")
+        }
         return Ok(());
     } else if let Some(file) = args.file {
         let path = file
@@ -73,13 +83,13 @@ async fn main() -> anyhow::Result<()> {
             .expect("Failed to load file")
             .to_owned();
         let _ = proxy.set_image(&path, screen, fill_mode).await;
-    } else if let Some(prompt) = args.prompt {
+    } else if let Some(prompt) = args.generate {
         let path = proxy
             .generate_from_prompt_and_apply(&prompt, use_cpu, screen, fill_mode)
             .await?;
-        let _ = proxy.set_image(&path, screen, fill_mode).await;
+        println!("Generated image at: {}", path)
     } else if let Some(dir) = args.directory {
-        let period = args.period.as_secs();
+        let period = args.interval.as_secs();
         let _ = proxy
             .start_directory_loop(dir.to_str().unwrap(), screen, fill_mode, period)
             .await;

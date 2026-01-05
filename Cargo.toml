@@ -19,9 +19,9 @@ serde_json = "1.0.148"
 serde = { version = "1.0.228", features = ["derive"] }
 
 [[bin]]
-name = "wp-d"
+name = "wepd"
 path = "src/bin/daemon.rs"
 
 [[bin]]
-name = "wp-c"
+name = "wep"
 path = "src/bin/client.rs"

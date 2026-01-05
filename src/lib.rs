@@ -51,5 +51,5 @@ pub trait WallpaperEngine {
         fill_mode: u8,
         period_secs: u64,
     ) -> zbus::Result<bool>;
-    fn stop_loop(&self) -> zbus::Result<()>;
+    fn stop_loop(&self) -> zbus::Result<bool>;
 }
