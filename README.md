@@ -1,16 +1,6 @@
 # wallpaper-engine-plasma
 
-Wallpaper engine for KDE Plasma. 
-
-## To-do
-- [ ] Client argument to stop directory loop
-- [ ] Daemon returns status messages when generating
-- [ ] Better loop (interval check if new)
-- [ ] Better argument checking (can't provide file and dir at same time)
-- [ ] systemd? + stopping daemon
-- [ ] Client check if daemon is running
-- [ ] GenAI depends on something that is currently going on, date of time
-- [ ] Better README (stop loop)
+Wallpaper engine for KDE Plasma. Currently only tested on Arch Linux.
 
 ## Features
 
@@ -24,7 +14,9 @@ Wallpaper engine for KDE Plasma.
 
 1.  KDE Plasma 6 (only tested on Arch Linux)
 2.  Rust
-3.  CUDA toolkit (if using image generation and an NVIDIA GPU)
+3.  If using image generation:
+    - CUDA toolkit (NVIDIA GPU only)
+    - 2 GB of free space for model weights
 
 ## Installation
 
@@ -48,42 +40,65 @@ Make sure you are in the folder with the binaries, by default:
 ```bash
 cd ~/.cargo/bin
 ```
-Note: if you do not have `.cargo/bin` in your PATH, then use `./wp-d` and `./wp-c` respectively for the commands below.
+Note: if you do not have `.cargo/bin` in your PATH, then use `./wepd` and `./wep` respectively for the commands below.
 
 ### 1. Start the daemon
 ```bash
-wp-d &
+wepd &
 ```
 
 ### 2. Send commands with client
 
-Examples:
-Display help:
 ```bash
-wp-c --help
+# Display help:
+wep --help
+
+# Apply a specific image with the fill mode:
+wep --file ~/Pictures/landscape.png --mode fill
+
+# Generate a wallpaper using Stable Diffusion:
+# Note: the first time may take time, since the weights have to be downloaded from HuggingFace.
+wep --generate "aurora borealis"
+
+# Apply each image in a directory every 30 minutes:
+wep --directory ~/Wallpapers --period 30m
+
+# Stop the current loop:
+wep --stop-loop
 ```
 
-Apply a specific image:
+## Autostart with systemd
+
+To have the daemon start automatically, you can set it up as a systemd user service.
+There is a `wepd.service` included in the repository.
+
+### Setup
 ```bash
-wp-c --file ~/Pictures/landscape.png --fill-mode fill
+cp wp-d.service ~/.config/systemd/user/
+systemctl --user daemon-reload
 ```
 
-Generate a wallpaper using Stable Diffusion:
 ```bash
-wp-c --prompt "aurora borealis"
-```
-Note: the first time may take time, since the weights have to be downloaded from HuggingFace.
+# Enable the service (starts automatically on login)
+systemctl --user enable wepd.service
 
-Apply each image in a directory every 30 minutes:
-```bash
-wp-c --directory ~/Wallpapers --period 30m
-```
+# Start the service right now
+systemctl --user start wepd.service
 
-Stop the current loop:
-```bash
-busctl --user call org.wallpaper.PlasmaEngine /org/wallpaper/PlasmaEngine org.wallpaper.PlasmaEngine StopLoop
+# Check if it's running
+systemctl --user status wepd.service
+
+# See live logs (e.g. image generation info)
+journalctl --user -u wepd.service -f
 ```
 
 ## License
 
 This project is licensed under the MIT License.
+
+## To-do
+- [ ] Client check if daemon is running
+- [ ] Daemon returns status messages when generating
+- [ ] Better loop (interval check if new?)
+- [ ] Better argument checking (can't provide file and dir at same time)
+

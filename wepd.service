@@ -1,0 +1,9 @@
+[Unit]
+Description=Wallpaper Engine Plasma Daemon
+
+[Service]
+ExecStart=%h/.cargo/bin/wepd
+Restart=always
+
+[Install]
+WantedBy=default.target
